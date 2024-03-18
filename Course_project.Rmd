@@ -1,0 +1,439 @@
+---
+title: "Neural activity data analysis and prediction model construction"
+author: "Ruilin Hu (919979170)"
+date: "03/18/2024"
+---
+
+# Abstract
+
+This project utilizes data from Steinmetz et al. (2019) to develop a predictive model using neural activity and stimulus information from mouse experiments. Detailed analysis focuses on key factors to construct the model. The paper outlines six main sections: introduction, exploratory data analysis, data integration, model training, prediction on the test data and the discussion part. The ultimate aim is to present a clear project report with model performance evaluation and experimental findings.
+
+## Data Background
+
+Data are from a portion of the data collected in the Steinmetz et al. (2019) experiment involving the behavioral and neural activity of 10 mice over 39 experimental sessions. In the experiments, mice responded to visual stimuli of varying contrast (0, 0.25, 0.5, 1) presented randomly on two screens by means of a wheel controlled by their front paws. Depending on the stimuli, the mice made decisions to turn the wheel or remain stationary, and their success or failure determined the reward or punishment they received. In addition, the study recorded data on the activity of neurons in the mice's visual cortex, i.e., the columns of spikes from the time of the stimulus's appearance to 0.4 seconds thereafter. This project analyzed data from only four mice (Cori, Frossman, Hence, and Lederberg) over 18 sessions.
+
+# Section 1 Introduction
+
+This project will aim to comprehensively analyze and predict neural activity data in mice based on the provided data cards. The project consists of four main sections:
+
+1.  Exploratory data analysis: this section characterizes the data, including data structure, comparisons of neural activity between experiments, and changes across experiments. We will also compare homogeneity/heterogeneity across mice and experiments.
+2.  Data integration: In this section, we plan to integrate data across experiments to ensure the accuracy and robustness of the analysis. This includes normalizing data from different experiments and mice, as well as using statistical methods to merge the data to improve the generalization ability and reliability of the model.
+3.  Predictive model construction: we will construct predictive models using logistic regression and random forests. Both models will be trained by cross-testing and the test data will be utilized to evaluate the prediction performance on feedback types. We will compare the prediction results of these two models in detail, analyze the advantages and limitations of each, and explore how to combine these two methods to improve the accuracy of prediction.
+4.  Discussion: In the final section, we will summarize the experimental results and explore potential directions for improvement. This may include analyzing the shortcomings in model performance, discussing potential problems in data collection and processing, and suggesting possible directions and strategies for future research.
+
+# Section 2 Exploratory analysis
+
+Firstly, we will import the data from the file "sessions".
+
+```{r message=FALSE, warning=FALSE,echo=FALSE}
+setwd("C:\\Users\\h1396\\OneDrive\\Desktop\\UCD\\STA 141A\\project\\sessions")
+
+
+session=list()
+for(i in 1:18){
+  session[[i]]=readRDS(paste('session',i,'.rds',sep=''))}
+
+summary(session[[1]])
+summary(session[[8]])
+```
+
+Based on the imported data we select to look at the data in the first and eighth rds files.
+
+According to the data we can see that there are total 18 RDS files that contain the data from 18 sessions. In the summary of the session we can see that there are 8 variables in the sessions. They are respectively
+
+1.  "feedback_type" : type of the feedback, 1 for success and -1 for failure;
+2.  "contrast_left": contrast of the left stimulus;
+3.  "contrast_right": contrast of the right stimulus;
+4.  "time": centers of the time bins for spks;
+5.  "spks": numbers of spikes of neurons in the visual cortex in time bins defined in time;
+6.  "brain_area": area of the brain where each neuron lives;
+7.  "mouse_name": the name of the mouse in the experiment;
+8.  "date_exp": date of the experiment.
+
+After completing these initial steps, we will further analyze the data in depth to reveal various patterns and features of neural activity in mice.
+
+```{r include=FALSE}
+library(tidyverse) 
+library(dplyr) 
+library(caret) 
+library(ROCR) 
+library(ggplot2)
+```
+
+## (I) Describe the data structures across sessions
+
+```{r echo=FALSE}
+library(tibble)
+
+neuron_data <- tibble(
+  Session_ID = character(),Mouse_name = character(),Neuron_Count = numeric(),Trials_Count = numeric(),Success_Count = numeric(),Ave_ConL = numeric(),Ave_ConR = numeric(),Avg_Spikes = numeric())
+
+for (i in seq_along(session)) {
+  current_session <- session[[i]]
+  
+  neuron_data <- neuron_data %>%
+    add_row(
+      Session_ID = paste("Session", i),
+      Mouse_name = current_session$mouse_name,
+      Neuron_Count = length(current_session$brain_area),
+      Trials_Count = length(current_session$feedback_type),
+      Success_Count = sum(current_session$feedback_type == 1),
+      Ave_ConL = mean(current_session$contrast_left),
+      Ave_ConR = mean(current_session$contrast_right),
+      Avg_Spikes = mean(sapply(current_session$spks, function(spks) mean(rowSums(spks))))
+    )
+}
+
+str(neuron_data)
+summary(neuron_data)
+
+ggplot(neuron_data, aes(x = Session_ID, y = Neuron_Count)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Neuron Count by Session",
+       x = "Session ID",
+       y = "Neuron Count")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+hist(neuron_data$Trials_Count)
+
+```
+
+We constructed a data set called "neuron_data" containing several variables:\
+Session_ID: Character type (chr) indicating the experimental session number corresponding to each row of data.
+
+Mouse_name: Character (chr) indicating the name of the mouse participating in each session.
+
+Neuron_Count: numeric (num) representing the number of neurons recorded in each session.
+
+Trials_Count: numeric (num), the total number of trials performed per session.
+
+Success_Count: numeric (num), the number of successful trials in each session.
+
+Ave_ConL (Average Left Contrast): numeric (num), the average contrast of the left visual stimulus.
+
+Ave_ConR (mean right contrast): numeric (num), the average contrast of the right visual stimulus.
+
+Avg_Spikes: numeric (num), the average number of pulses per session.
+
+The numeric fields Neuron_Count, Trials_Count, Success_Count, Ave_ConL, Ave_ConR, and Avg_Spikes all have their respective minimum, first quartile, median, mean, third quartile, and maximum values, providing basic information about the distribution of these metrics. For example, Neuron_Count has a minimum value of 474 and a maximum value of 1769, showing the difference in the number of neurons between experimental sessions. Trials_Count and Success_Count can be used to measure the amount of trials and the success rate of each session. And we count the amount of the neuron in each sessions and ues a visualization to show it in the bar graph and histogram.
+
+## (II) Explore the neural activities during each trial
+
+In order to explore the changes in neural activity in each experiment, we chose data from the first and eighth experiments for a more comprehensive presentation. And we visualize the changes by presenting the data of neuronal activity("spks").
+
+### session 1 as the example
+
+```{r echo=FALSE}
+random_numbers <- sort(sample(1:length(session[[1]][["spks"]]), 3, replace = TRUE))
+par(mfrow = c(1, 1)) 
+
+spks_data1 <- as.data.frame(session[[1]][["spks"]][[random_numbers[1]]]) 
+matplot(spks_data1, type = "l", col = 1:length(session[[1]][["spks"]][[1]]), lty = 1, xlab = "Trial" , ylab = "Spikes") 
+
+spks_data2 <- as.data.frame(session[[1]][["spks"]][[random_numbers[2]]]) 
+matplot(spks_data2, type = "l", col = 1:length(session[[1]][["spks"]][[57]]), lty = 1, xlab = "Trial" , ylab = "Spikes") 
+
+spks_data3 <- as.data.frame(session[[1]][["spks"]][[random_numbers[3]]]) 
+matplot(spks_data3, type = "l", col = 1:length(session[[1]][["spks"]][[110]]), lty = 1, xlab = "Trial" , ylab = "Spikes")
+```
+
+### session 8 as the example
+
+```{r echo=FALSE}
+random_numbers <- sort(sample(1:length(session[[8]][["spks"]]), 3, replace = TRUE))
+
+spks_data4 <- as.data.frame(session[[8]][["spks"]][[random_numbers[1]]]) 
+matplot(spks_data4, type = "l", col = 1:length(session[[8]][["spks"]][[random_numbers[1]]]), lty = 1, xlab = "Trial" , ylab = "Spikes") 
+
+spks_data5 <- as.data.frame(session[[8]][["spks"]][[random_numbers[2]]]) 
+matplot(spks_data5, type = "l", col = 1:length(session[[8]][["spks"]][[random_numbers[2]]]), lty = 1, xlab = "Trial" , ylab = "Spikes") 
+
+spks_data6 <- as.data.frame(session[[8]][["spks"]][[random_numbers[3]]]) 
+matplot(spks_data6, type = "l", col = 1:length(session[[8]][["spks"]][[random_numbers[3]]]), lty = 1, xlab = "Trial" , ylab = "Spikes")
+```
+
+The distribution of the number of neural pulse spikes can be clearly seen through the image.
+
+## (III) Explore the changes across trials
+
+Then in order to explore the variation between each experiment trials. Specifically we will choose the data from the first session to explore. We will pat attention to exploring the effect of feedback type on the distribution of contrast between left and right visual stimuli and plotting the distribution.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+trials_data <- data.frame(list(feedback_type = session[[1]]$feedback_type,  contrast_left = session[[1]]$contrast_left, contrast_right = session[[1]]$contrast_right)) 
+
+ggplot(trials_data, aes(x = factor(trials_data$feedback_type), y = trials_data$contrast_left)) +  
+  geom_boxplot() +  
+  labs(title = "Distribution of Contrast Left by Feedback Type") 
+
+ggplot(trials_data, aes(x = factor(trials_data$feedback_type), y = trials_data$contrast_right)) + 
+  geom_boxplot() + 
+  labs(title = "Distribution of Contrast Right by Feedback Type")
+```
+
+For the feedback, 1 for success and -1 for failure. Based on the images we can see that as the amount of stimulus increases from low to high. For contrast of the left stimulus there are more successful cases and for the right side there are more failed cases. We can analyze the experimental data from the first session that the mice responded more efficiently to the contrast of the left stimulus.
+
+## (IV) Explore homogeneity and heterogeneity across sessions and mice
+
+**Homogeneity test using LeveneTest**
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+library(carData)
+library(car)
+neuron_data$Mouse_name <- factor(neuron_data$Mouse_name)
+levenetest_result = leveneTest(Avg_Spikes ~ Mouse_name, data = neuron_data)
+print(levenetest_result)
+```
+
+For the test of the homogeneity, we are going to use the Levene's test. It is an useful statistic to test the equality of variance for a variable calculated for 2 or more groups. And it helps to verify whether the assumption of homogeneity of variances holds true.
+
+In this test, the p-value is greater than the usual level of significance (e.g., 0.05), so we cannot reject the original hypothesis that the variances between the different groups are equal.
+
+It can be reasonably assumed that the variance is equal between the groups.
+
+**Heterogeneity test using Bartlett test**
+
+```{r echo=FALSE}
+library(stats)
+
+bartlett_test_result <- bartlett.test(Avg_Spikes ~ Mouse_name, data = neuron_data)
+print(bartlett_test_result)
+```
+
+We make the null hypothesis that all the studies are homogeneous so the variance in each of the groups are the same.
+
+The alternative hypothesis we make will be that at least one group has a variance that is different from the others (heterogeneity of variances).
+
+And we are going to use bartlett.test to prove for it.
+
+Bartlett test is commonly used to test if samples have equal variance or not.
+
+If the p-value of the test is low we can reject the hypothesis and heterogeneity is present.
+
+In the Bartlett test result, a p-value of 0.5409.
+
+Based on this result, we cannot reject the original hypothesis that the variance is equal between the different groups.
+
+# Section 3 Data integration
+
+Based on the test results of homogeneity and heterogeneity, all session data can be merged reasonably. And we combine all the sessions data from the sessions in a new data set.
+
+```{r echo=FALSE}
+library(tibble)
+all_data <- tibble()
+
+all_data <- bind_rows(lapply(1:length(session), function(i) 
+{
+  session_data <- session[[i]]
+  tibble(
+    session_ID = as.factor(paste("Session", i)),
+    feedback_type = as.factor(session_data$feedback_type),
+    contrast_right = as.factor(session_data$contrast_right),
+    contrast_left = as.factor(session_data$contrast_left),
+    decision = as.factor(ifelse(session_data$contrast_left > session_data$contrast_right, 1,
+                                ifelse(session_data$contrast_left < session_data$contrast_right, 2,
+                                       ifelse(session_data$contrast_left == session_data$contrast_right & session_data$contrast_left == 0, 3, 4)))),
+    Neuron_Count = length(session_data$brain_area),
+    Avg_Spks = sapply(session_data$spks, mean, na.rm = TRUE)
+  )
+}))
+
+str(all_data)
+
+summary(all_data)
+```
+
+All the data from the 18 sessions were merged to create a data set containing the variables :
+
+-   session_ID: Creates a factor identifier for each session.
+
+-   feedback_type: Transforms the feedback type of each session into a factor type.
+
+-   contrast_right and contrast_left: Converts the contrast levels of right and left visual stimuli in each session into factor types.
+
+-   decision: Calculates a decision metric based on the values of contrast_left and contrast_right. This is a factor field representing the type of decision made by the mouse.
+
+-   Neuron_Count: Counts the number of neurons in each session.
+
+-   Avg_Spks: Calculates the mean of the average firing rates of neurons in each session.
+
+In which, "feedback_type", "contrast_right", "contrast_left", "decision" are categorical variables and "Neuron_Count", "Avg_Spks", are numeric variables.
+
+# Section 4 Predictive modeling
+
+In this section, we focus on developing and comparing two different predictive models: Logistic Regression and Random Forest. The aim of these models is to predict the feedback type in mouse experiments based on multiple predictors.
+
+1.  **Logistic Regression Model**:
+
+    -   Utilizing logistic regression, we aim to establish a model to predict the feedback type based on decision type, visual stimulus contrast, neuron count, and average spikes.
+
+    -   During the model training process, cross-validation (10-fold cross-validation) was employed to assess the model's performance.
+
+2.  **Random Forest Model**:
+
+    -   The Random Forest model is also constructed using the same predictors.
+
+    -   This model employs the Random Forest algorithm, a powerful ensemble learning method capable of handling complex data structures and providing highly accurate predictions.
+
+    -   The Random Forest model also underwent a cross-validation process to verify its performance.
+
+### Logistic Regression
+
+```{r echo=FALSE}
+set.seed(123)
+n = length(all_data$feedback_type)
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+#define formulation
+formula <- feedback_type ~ decision + contrast_right + contrast_left + Neuron_Count + Avg_Spks
+
+model1 <- train(formula, data = all_data, method = "glm", trControl = ctrl, family = binomial)
+
+print(model1)
+
+performance1 <- model1$results
+print(performance1)
+```
+
+This model_1 had an accuracy of 71% in cross-validation.
+
+### Random Forest
+
+```{r echo=FALSE}
+model2 <- train(formula, data = all_data, method = "rf", trControl = ctrl)
+print(model2)
+performance2 <- model2$results
+print(performance2)
+```
+
+A second model (model2) trained using the Random Forest method. It performs better relative to the previous GLM model, when high accuracy (72%) and Kappa coefficient are achieved at mtry=6.
+
+Therefore, by comparing the Accuracy and Kappa coefficient, it was decided to choose the Random Forest model (model_2) as the final predictive model for the next step of the analysis.
+
+# Section 5 Prediction performance on the test sets
+
+### Test data from the first session for testing
+
+```{r message=FALSE, warning=FALSE,echo=FALSE}
+setwd("C:\\Users\\h1396\\OneDrive\\Desktop\\UCD\\STA 141A\\project\\ffp1\\test")
+test=list()
+for(i in 1:2){
+  test[[i]]=readRDS(paste('test',i,'.rds',sep=''))}
+
+testdata<-tibble()
+testdata<- bind_rows(lapply(1:length(test), function(i) 
+{
+  session_data <- session[[i]]
+  tibble(
+    session_ID = as.factor(paste("Session", i)),
+    feedback_type = as.factor(session_data$feedback_type),
+    contrast_right = as.factor(session_data$contrast_right),
+    contrast_left = as.factor(session_data$contrast_left),
+    decision = as.factor(ifelse(session_data$contrast_left > session_data$contrast_right, 1,
+                                ifelse(session_data$contrast_left < session_data$contrast_right, 2,
+                                       ifelse(session_data$contrast_left == session_data$contrast_right & session_data$contrast_left == 0, 3, 4)))),
+    Neuron_Count = length(session_data$brain_area),
+    Avg_Spks = sapply(session_data$spks, mean, na.rm = TRUE)
+  )
+}))
+
+  index_session_1 <- which(testdata$session_ID == "Session 1")
+  index_test_1 <- sample(index_session_1)
+  test_set_1<- testdata[index_test_1, ]
+
+predictions_1 <- predict(model2, newdata = test_set_1)
+
+conf_matrix_1 <- confusionMatrix(predictions_1, test_set_1$feedback_type)
+performance_metrics_1 <- conf_matrix_1$byClass
+
+print(conf_matrix_1)
+print(performance_metrics_1)
+```
+
+```{r echo=FALSE}
+conf_matrix_data <- data.frame(
+  Actual = c(rep("-1", 2), rep("1", 2)),
+  Predicted = c("-1", "1", "-1", "1"),
+  Count = c(conf_matrix_1$table[1,1], conf_matrix_1$table[2,1], conf_matrix_1$table[1,2], conf_matrix_1$table[2,2])
+)
+
+conf_matrix_plot <- ggplot(data = conf_matrix_data, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile(color = "gray") +
+  geom_text(aes(label = Count), vjust = 1) +
+  scale_fill_gradient(low = "gray", high = "blue") +  
+  labs(x = "Actual", y = "Predicted") +
+  theme_minimal()
+
+print(conf_matrix_plot)
+```
+
+The model demonstrated quite a good performance. The accuracy is 86.84% with a Kappa coefficient of 0.7124, which indicates a significant agreement between the model's predictions and the actual observations.
+
+The specificity is as high as 97.10% while the sensitivity is 71.11%, which means that the model performs well in identifying negative cases but is slightly less effective in identifying positive cases.
+
+The model performs well in predicting negative examples, but there is still room for improvement in positive examples.
+
+### Test data of the second one for testing
+
+```{r echo=FALSE}
+index_session_2 <- which(testdata$session_ID == "Session 2")
+  index_test_2 <- sample(index_session_2)
+  test_set_2<- testdata[index_test_2, ]
+
+predictions_2 <- predict(model2, newdata = test_set_2)
+
+conf_matrix_2 <- confusionMatrix(predictions_2, test_set_2$feedback_type)
+performance_metrics_2 <- conf_matrix_2$byClass
+
+print(conf_matrix_2)
+print(performance_metrics_2)
+
+```
+
+```{r fig.height=5, fig.width=5, echo=FALSE}
+conf_matrix_data <- data.frame(
+  Actual = c(rep("-1", 2), rep("1", 2)),
+  Predicted = c("-1", "1", "-1", "1"),
+  Count = c(conf_matrix_2$table[1,1], conf_matrix_2$table[2,1], conf_matrix_2$table[1,2], conf_matrix_2$table[2,2])
+)
+
+conf_matrix_plot <- ggplot(data = conf_matrix_data, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile(color = "gray") +
+  geom_text(aes(label = Count), vjust = 1) +
+  scale_fill_gradient(low = "gray", high = "blue") +  
+  labs(x = "Actual", y = "Predicted") +
+  theme_minimal()
+
+print(conf_matrix_plot)
+```
+
+The test results are similar to the previous test set realization, with a high accuracy of 85.26% and a Kappa coefficient of 0.66, indicating a significant agreement between the predictions and the actual results.
+
+The specificity is high at 97.48%, while the sensitivity is 64.13%, which means that the model performs well in identifying negative examples, but is slightly less effective in identifying positive examples.
+
+Overall, the model still performs well in terms of overall performance even though it is slightly deficient in identifying positive examples.
+
+# Section 6 Discussion
+
+By comparing the accuracy of both logistic regression and random forest models, the Random Forest Model was finally chosen as the prediction method for the project. And the prediction of feedback_type was made by several variables such as decision, contrast_right, contrast_left, Neuron_Count, Avg_Spks and so on.
+
+Finally, I chose two different test sets to examine the models. The test results are mostly the same, with high accuracy and Kappa coefficients, and significant agreement between the model's predictions and actual observations. The specificity is high and the sensitivity performance is average. Also, the model performs well in identifying negative examples, but is slightly deficient in identifying positive examples.
+
+Future perspectives include exploring more effective feature engineering methods, experimenting with other model algorithms to improve predictive power, and enhancing data quality control to reduce the impact of noise.
+
+# Reference
+
+Steinmetz, N.A., Zatka-Haas, P., Carandini, M. et al. Distributed coding of choice, action and engagement across the mouse brain. Nature 576, 266–273 (2019). 
+
+<https://doi.org/10.1038/s41586-019-1787-x>
+
+Levene's test:
+
+<https://en.wikipedia.org/wiki/Levene%27s_test#>[:\~:text=In%20statistics%2C%20Levene's%20test%20is,samples%20are%20drawn%20are%20equal.](https://en.wikipedia.org/wiki/Levene%27s_test#:~:text=In%20statistics%2C%20Levene's%20test%20is,samples%20are%20drawn%20are%20equal.)
+
+Bartlett Test:\
+<https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/bartlett.test>
+
+Caret Package:
+
+<https://daviddalpiaz.github.io/r4sl/the-caret-package.html>
