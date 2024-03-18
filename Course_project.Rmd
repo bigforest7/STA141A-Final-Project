@@ -369,8 +369,6 @@ performance_metrics_18 <- conf_matrix_18$byClass
 
 print(conf_matrix_18)
 print(performance_metrics_18)
-
-saveRDS(test_set_1, "test_set_18.rds")
 ```
 
 ```{r echo=FALSE}
