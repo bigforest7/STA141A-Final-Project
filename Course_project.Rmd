@@ -26,12 +26,12 @@ This project will aim to comprehensively analyze and predict neural activity dat
 Firstly, we will import the data from the file "sessions".
 
 ```{r message=FALSE, warning=FALSE,echo=FALSE}
-setwd("C:\\Users\\h1396\\OneDrive\\Desktop\\UCD\\STA 141A\\project\\sessions")
+# setwd("C:\\Users\\h1396\\OneDrive\\Desktop\\UCD\\STA 141A\\project\\sessions")
 
 
 session=list()
 for(i in 1:18){
-  session[[i]]=readRDS(paste('session',i,'.rds',sep=''))}
+  session[[i]]=readRDS(paste('./Data/session',i,'.rds',sep=''))}
 
 summary(session[[1]])
 summary(session[[8]])
@@ -315,10 +315,11 @@ Therefore, by comparing the Accuracy and Kappa coefficient, it was decided to ch
 ### Test data from the first session for testing
 
 ```{r message=FALSE, warning=FALSE,echo=FALSE}
-setwd("C:\\Users\\h1396\\OneDrive\\Desktop\\UCD\\STA 141A\\project\\ffp1\\test")
+# setwd("C:\\Users\\h1396\\OneDrive\\Desktop\\UCD\\STA 141A\\project\\ffp1\\test")
+
 test=list()
 for(i in 1:2){
-  test[[i]]=readRDS(paste('test',i,'.rds',sep=''))}
+  test[[i]]=readRDS(paste('./Data/test',i,'.rds',sep=''))}
 
 testdata<-tibble()
 testdata<- bind_rows(lapply(1:length(test), function(i) 
@@ -367,9 +368,9 @@ conf_matrix_plot <- ggplot(data = conf_matrix_data, aes(x = Actual, y = Predicte
 print(conf_matrix_plot)
 ```
 
-The model demonstrated quite a good performance. The accuracy is 86.84% with a Kappa coefficient of 0.7124, which indicates a significant agreement between the model's predictions and the actual observations.
+The model demonstrated quite a good performance. The accuracy is 89.47% with a Kappa coefficient of 0.7709, which indicates a significant agreement between the model's predictions and the actual observations.
 
-The specificity is as high as 97.10% while the sensitivity is 71.11%, which means that the model performs well in identifying negative cases but is slightly less effective in identifying positive cases.
+The specificity is as high as 98.55% while the sensitivity is 75.56%, which means that the model performs well in identifying negative cases but is slightly less effective in identifying positive cases.
 
 The model performs well in predicting negative examples, but there is still room for improvement in positive examples.
 
@@ -407,9 +408,9 @@ conf_matrix_plot <- ggplot(data = conf_matrix_data, aes(x = Actual, y = Predicte
 print(conf_matrix_plot)
 ```
 
-The test results are similar to the previous test set realization, with a high accuracy of 85.26% and a Kappa coefficient of 0.66, indicating a significant agreement between the predictions and the actual results.
+The test results are similar to the previous test set realization, with a high accuracy of 84.06% and a Kappa coefficient of 0.6315, indicating a significant agreement between the predictions and the actual results.
 
-The specificity is high at 97.48%, while the sensitivity is 64.13%, which means that the model performs well in identifying negative examples, but is slightly less effective in identifying positive examples.
+The specificity is high at 96.86%, while the sensitivity is 61.96%, which means that the model performs well in identifying negative examples, but is slightly less effective in identifying positive examples.
 
 Overall, the model still performs well in terms of overall performance even though it is slightly deficient in identifying positive examples.
 
@@ -420,6 +421,10 @@ By comparing the accuracy of both logistic regression and random forest models, 
 Finally, I chose two different test sets to examine the models. The test results are mostly the same, with high accuracy and Kappa coefficients, and significant agreement between the model's predictions and actual observations. The specificity is high and the sensitivity performance is average. Also, the model performs well in identifying negative examples, but is slightly deficient in identifying positive examples.
 
 Future perspectives include exploring more effective feature engineering methods, experimenting with other model algorithms to improve predictive power, and enhancing data quality control to reduce the impact of noise.
+
+# Github link
+
+<https://github.com/bigforest7/STA141A-Final-Project.git>
 
 # Reference
 
