@@ -312,6 +312,94 @@ Therefore, by comparing the Accuracy and Kappa coefficient, it was decided to ch
 
 # Section 5 Prediction performance on the test sets
 
+Before we have the test data, we will try to evaluate our model by random selection data for test. We choose data from Session 1 and Session 18. We will take the data and use model2 to make predictions and will use the confusion matrix to evaluate the results of the model.
+
+### Randomly select 100 samples from the session_1 for testing
+
+```{r echo=FALSE}
+set.seed(123)
+
+index_session_1 <- which(all_data$session_ID == "Session 1")
+index_test_1 <- sample(index_session_1, 100)
+test_set_1 <- all_data[index_test_1, ]
+
+predictions_1 <- predict(model2, newdata = test_set_1)
+
+conf_matrix_1 <- confusionMatrix(predictions_1, test_set_1$feedback_type)
+performance_metrics_1 <- conf_matrix_1$byClass
+
+print(conf_matrix_1)
+print(performance_metrics_1)
+```
+
+```{r echo=FALSE}
+conf_matrix_data <- data.frame(
+  Actual = c(rep("-1", 2), rep("1", 2)),
+  Predicted = c("-1", "1", "-1", "1"),
+  Count = c(conf_matrix_1$table[1,1], conf_matrix_1$table[2,1], conf_matrix_1$table[1,2], conf_matrix_1$table[2,2])
+)
+
+conf_matrix_plot <- ggplot(data = conf_matrix_data, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile(color = "gray") +
+  geom_text(aes(label = Count), vjust = 1) +
+  scale_fill_gradient(low = "gray", high = "blue") +  
+  labs(x = "Actual", y = "Predicted") +
+  theme_minimal()
+
+print(conf_matrix_plot)
+```
+
+The model demonstrated quite a good performance. The accuracy is 89% with a Kappa coefficient of 0.7619, which indicates a significant agreement between the model's predictions and the actual observations.
+
+The specificity is as high as 98.33% while the sensitivity is 75%, which means that the model performs well in identifying negative cases but is slightly less effective in identifying positive cases.
+
+The model performs well in predicting negative examples, but there is still room for improvement in positive examples.
+
+### Randomly select 100 samples from the session_18 for testing
+
+```{r echo=FALSE}
+index_session_18 <- which(all_data$session_ID == "Session 18")
+index_test_18 <- sample(index_session_18, 100)
+test_set_18 <- all_data[index_test_18, ]
+
+predictions_18 <- predict(model2, newdata = test_set_18)
+
+conf_matrix_18 <- confusionMatrix(predictions_18, test_set_18$feedback_type)
+performance_metrics_18 <- conf_matrix_18$byClass
+
+print(conf_matrix_18)
+print(performance_metrics_18)
+
+saveRDS(test_set_1, "test_set_18.rds")
+```
+
+```{r fig.height=5, fig.width=5,echo=FALSE}
+conf_matrix_data <- data.frame(
+  Actual = c(rep("-1", 2), rep("1", 2)),
+  Predicted = c("-1", "1", "-1", "1"),
+  Count = c(conf_matrix_18$table[1,1], conf_matrix_18$table[2,1], conf_matrix_18$table[1,2], conf_matrix_18$table[2,2])
+)
+
+conf_matrix_plot <- ggplot(data = conf_matrix_data, aes(x = Actual, y = Predicted, fill = Count)) +
+  geom_tile(color = "gray") +
+  geom_text(aes(label = Count), vjust = 1) +
+  scale_fill_gradient(low = "gray", high = "blue") +  
+  labs(x = "Actual", y = "Predicted") +
+  theme_minimal()
+
+print(conf_matrix_plot)
+```
+
+The test results are similar to the previous test set realisation, with a high accuracy of 93% and a Kappa coefficient of 0.6818, indicating a significant agreement between the predictions and the actual results.
+
+The specificity is high at 98.82%, while the sensitivity is 60%, which means that the model performs well in identifying negative examples, but is slightly less effective in identifying positive examples.
+
+Overall, the model still performs well in terms of overall performance even though it is slightly deficient in identifying positive examples.
+
+## Test Data
+
+For the test sets data, we will have 2 rds file and test1.rds comes from Session 1 and test2.rds comes from Session 18. We will take the data and use model2 to make predictions and will use the confusion matrix to evaluate the results of the model.
+
 ### Test data from the first session for testing
 
 ```{r message=FALSE, warning=FALSE,echo=FALSE}
@@ -368,11 +456,9 @@ conf_matrix_plot <- ggplot(data = conf_matrix_data, aes(x = Actual, y = Predicte
 print(conf_matrix_plot)
 ```
 
-The model demonstrated quite a good performance. The accuracy is 89.47% with a Kappa coefficient of 0.7709, which indicates a significant agreement between the model's predictions and the actual observations.
+The model's performance is impressive, achieving an accuracy of approximately 89.47%. With a Kappa score of 0.7709, there's substantial concordance between what the model predicts and the real-world outcomes.
 
-The specificity is as high as 98.55% while the sensitivity is 75.56%, which means that the model performs well in identifying negative cases but is slightly less effective in identifying positive cases.
-
-The model performs well in predicting negative examples, but there is still room for improvement in positive examples.
+It excels particularly in specificity, correctly identifying negative instances 98.55% of the time, although its sensitivity, at 75.56%, suggests it's somewhat less adept at pinpointing positive instances.
 
 ### Test data of the second one for testing
 
@@ -408,11 +494,12 @@ conf_matrix_plot <- ggplot(data = conf_matrix_data, aes(x = Actual, y = Predicte
 print(conf_matrix_plot)
 ```
 
-The test results are similar to the previous test set realization, with a high accuracy of 84.06% and a Kappa coefficient of 0.6315, indicating a significant agreement between the predictions and the actual results.
+\
+The model's test results are quite good, with an accuracy of 84.06% and a Kappa coefficient of 0.6315, indicating a significant consistency between the model's predictions and the actual situations.
 
-The specificity is high at 96.86%, while the sensitivity is 61.96%, which means that the model performs well in identifying negative examples, but is slightly less effective in identifying positive examples.
+The model is very good at confirming negative examples, with a high specificity of 96.86%, but it is slightly less sensitive in identifying positive examples, with a sensitivity of only 61.96%.
 
-Overall, the model still performs well in terms of overall performance even though it is slightly deficient in identifying positive examples.
+Overall, despite the model being somewhat deficient in identifying positive examples, its overall performance is still quite impressive.
 
 # Section 6 Discussion
 
