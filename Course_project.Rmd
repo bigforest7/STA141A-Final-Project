@@ -373,7 +373,7 @@ print(performance_metrics_18)
 saveRDS(test_set_1, "test_set_18.rds")
 ```
 
-```{r fig.height=5, fig.width=5,echo=FALSE}
+```{r echo=FALSE}
 conf_matrix_data <- data.frame(
   Actual = c(rep("-1", 2), rep("1", 2)),
   Predicted = c("-1", "1", "-1", "1"),
@@ -477,7 +477,7 @@ print(performance_metrics_2)
 
 ```
 
-```{r fig.height=5, fig.width=5, echo=FALSE}
+```{r echo=FALSE}
 conf_matrix_data <- data.frame(
   Actual = c(rep("-1", 2), rep("1", 2)),
   Predicted = c("-1", "1", "-1", "1"),
